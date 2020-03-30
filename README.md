@@ -35,7 +35,6 @@
 | Feature              | Frost | Make | Mage | Go-Task |
 |----------------------|-------|------|------|---------|
 | Fast                 | ✔️     | ✔️    | ✔️    | ✔️       |
-| Plugins              | ✔️     |      | ✔️    |         |
 | Bash Support         | ✔️     | ✔️    | ✔️    | ✔️       |
 | Target Flags         | ✔️     | ✔️§   | ✔️§   | ✔️§§     |
 | Autocomplete         | ✔️     | ✔️    |      | ✔️       |
@@ -76,9 +75,6 @@ I've been itching to write my own CLI for awhile now, and I think I finally have
 ## Credits
 
 - spf13/cobra
-- spf13/viper
-- hashicorp/go-plugins
-- hashicorp/go-versions
 
 ## Support
 

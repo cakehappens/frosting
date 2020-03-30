@@ -8,6 +8,8 @@ Imagine that this is the _root_ of your project repo. It doesn't matter what lan
 
 ## Getting Started
 
-```shell
+Compile into a binary
 
+```shell
+go build -o fr ./frosting
 ```

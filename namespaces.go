@@ -2,9 +2,9 @@ package frosting
 
 import (
 	"errors"
-	"fmt"
+	"gopkg.in/eapache/queue.v1"
+
 	mapset "github.com/deckarep/golang-set"
-	"github.com/golang-collections/go-datastructures/queue"
 )
 
 type Namespace interface {
@@ -12,14 +12,14 @@ type Namespace interface {
 	ID() string
 	Parent() *NamespaceInfo
 	Children() []*NamespaceInfo
-	MustAddIngredient(ing IngredientFn)
+	MustAddIngredients(ingFns ...IngredientFn)
 }
 
 type NamespaceInfo struct {
-	name string
-	id string
-	parent *NamespaceInfo
-	children mapset.Set
+	name          string
+	id            string
+	parent        *NamespaceInfo
+	children      mapset.Set
 	ingredientFns []IngredientFn
 }
 
@@ -40,12 +40,14 @@ func (n *NamespaceInfo) Children() []*NamespaceInfo {
 	return children
 }
 
-func (n *NamespaceInfo) MustAddIngredient(ing IngredientFn) {
-	if ing == nil {
-		panic(errors.New("ingredient cannot be nil"))
-	}
+func (n *NamespaceInfo) MustAddIngredients(ing ...IngredientFn) {
+	for _, ingFn := range ing {
+		if ingFn == nil {
+			panic(errors.New("ingredient cannot be nil"))
+		}
 
-	n.ingredientFns = append(n.ingredientFns, ing)
+		n.ingredientFns = append(n.ingredientFns, ingFn)
+	}
 }
 
 func (n *NamespaceInfo) ID() string {
@@ -59,10 +61,15 @@ func MustNewNamespace(name string, ingredientFns []IngredientFn, children ...*Na
 		panic(errors.New("namespace name cannot be empty"))
 	}
 
+	if ingredientFns == nil {
+		ingredientFns = []IngredientFn{}
+	}
+
 	n := &NamespaceInfo{
-		name: name,
-		id: newULID(),
+		name:          name,
+		id:            newULID(),
 		ingredientFns: ingredientFns,
+		children:      mapset.NewSet(),
 	}
 
 	for _, child := range children {
@@ -76,20 +83,18 @@ func resolveNamespaces(root *NamespaceInfo) ([]*NamespaceInfo, error) {
 	namespaces := []*NamespaceInfo{}
 
 	visited := make(map[string]bool)
-	nsQueue := queue.New(1)
+	nsQueue := queue.New()
 
 	visited[root.ID()] = true
 	namespaces = append(namespaces, root)
 
-	nsQueue.Put(root.Children())
+	for _, ns := range root.Children() {
+		nsQueue.Add(ns)
+	}
 
-	for nsQueue.Len() > 0 {
-		dequeuedNamespaces, err := nsQueue.Get(1)
-		if err != nil {
-			return nil, fmt.Errorf("problem dequeuing namespace: %w", err)
-		}
+	for nsQueue.Length() > 0 {
+		ns := nsQueue.Remove().(*NamespaceInfo)
 
-		ns := dequeuedNamespaces[0].(*NamespaceInfo)
 		if _, ok := visited[ns.id]; ok {
 			return nil, errors.New("found circular namespace reference")
 		}
@@ -97,7 +102,9 @@ func resolveNamespaces(root *NamespaceInfo) ([]*NamespaceInfo, error) {
 		namespaces = append(namespaces, ns)
 		visited[ns.id] = true
 
-		nsQueue.Put(ns.Children())
+		for _, ns := range ns.Children() {
+			nsQueue.Add(ns)
+		}
 	}
 
 	return namespaces, nil

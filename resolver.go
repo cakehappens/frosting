@@ -3,8 +3,11 @@ package frosting
 import (
 	"errors"
 	"fmt"
+
 	mapset "github.com/deckarep/golang-set"
 )
+
+type IngredientGraph []*IngredientInfo
 
 type IngredientDependencyResolver interface {
 	Resolve() (IngredientGraph, error)
@@ -24,7 +27,7 @@ func newIngredientDependencyResolver(ingredients IngredientGraph) (*ingredientDe
 
 	for _, ing := range ingredients {
 		if ing.id == "" {
-			return nil, fmt.Errorf("ingredientInfo does not have id. Create only using NewIngredientInfo. Name: %s", t.Name)
+			return nil, fmt.Errorf("ingredientInfo does not have id. Create only using NewIngredientInfo. Name: %s", ing.Name)
 		}
 		r.ingredients[ing.id] = ing
 	}
@@ -34,7 +37,7 @@ func newIngredientDependencyResolver(ingredients IngredientGraph) (*ingredientDe
 
 func (r *ingredientDependencyResolver) Resolve() (IngredientGraph, error) {
 	// if we've already resolved, don't re-resolve
-	if len(r.resolved) >= 0 {
+	if len(r.resolved) > 0 {
 		return r.resolved, nil
 	}
 

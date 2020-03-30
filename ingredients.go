@@ -2,19 +2,20 @@ package frosting
 
 import (
 	"errors"
-	"github.com/deckarep/golang-set"
-)
 
-type IngredientGraph []*IngredientInfo
+	mapset "github.com/deckarep/golang-set"
+)
 
 type IngredientFn func() *IngredientInfo
 
 type IngredientInfo struct {
-	Name                string
-	Fn                  func() error
+	Name string
+	Fn   func() error
 
-	id                  string
-	dependencyFns		[]IngredientFn
+	namespace     *NamespaceInfo
+	id            string
+	dependencyFns []IngredientFn
+
 	// set of IngredientInfo's
 	dependencies        mapset.Set
 	currentDependencies mapset.Set
@@ -32,8 +33,8 @@ func MustNewIngredientInfo(name string, options ...func(ing *IngredientInfo)) *I
 	}
 
 	ing := &IngredientInfo{
-		Name: name,
-		id:   newULID(),
+		Name:         name,
+		id:           newULID(),
 		dependencies: mapset.NewSet(),
 	}
 

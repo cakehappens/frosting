@@ -23,6 +23,6 @@ func main() {
 	client := fr.MustNew(
 		greetings.GreetingsNamespace,
 	)
-	client.RootNamespace().MustAddIngredient(Build)
+	client.RootNamespace().MustAddIngredients(Build)
 	client.Execute(os.Args[1:]...)
 }
