@@ -16,3 +16,6 @@
 
 # JetBrains/GoLand
 /.idea
+
+# Frosting Binary
+/fr
