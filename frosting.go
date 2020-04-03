@@ -1,74 +1,120 @@
 package frosting
 
-import "fmt"
+import (
+	"context"
+	"errors"
+	"fmt"
+	"github.com/spf13/cobra"
+	"os"
+	"os/signal"
+	//"reflect"
+	//"runtime"
+	//"strings"
+	"syscall"
+
+	"github.com/fatih/color"
+	"github.com/oklog/run"
+	//"gopkg.in/eapache/queue.v1"
+)
 
 type ClientInfo struct {
-	rootNamespace *NamespaceInfo
-	ingredientFns []IngredientFn
+	defaultIngredient *Ingredient
+	ingredientGroups  []*IngredientGroup
 }
 
-type Client interface {
-	Execute(args ...string)
-	RootNamespace() *NamespaceInfo
+func New(binaryName string) *ClientInfo {
+	return &ClientInfo{
+		defaultIngredient: &Ingredient{
+			cobraCommand: &cobra.Command{
+				Use: binaryName,
+				RunE: func(cmd *cobra.Command, args []string) error {
+					if len(args) == 0 {
+						fmt.Println("no args.. running help...")
+						runHelp(cmd, args)
+						return nil
+					}
+
+					fmt.Printf("running: %s\n", args)
+					return nil
+				},
+			},
+		},
+	}
+}
+
+func runHelp(cmd *cobra.Command, args []string) {
+	cmd.Help()
+}
+
+func (c *ClientInfo) MustAddIngredientGroups(ingGrps ...*IngredientGroup) {
+	ingGrpNsMap := make(map[string]bool)
+	ingGrpHeaderMap := make(map[string]bool)
+
+	for _, ingGrp := range ingGrps {
+		if ingGrp.Header == "" {
+			panic(fmt.Errorf("ingredient groups must have a non-empty header. found empty header for: %+v", ingGrp))
+		}
+
+		if ingGrpNsMap[ingGrp.Namespace] {
+			panic(fmt.Errorf("duplicate namespace: %s", ingGrp.Namespace))
+		}
+
+		if ingGrpHeaderMap[ingGrp.Header] {
+			panic(fmt.Errorf("duplicate header: %s", ingGrp.Header))
+		}
+
+		ingGrpNsMap[ingGrp.Namespace] = true
+		ingGrpHeaderMap[ingGrp.Header] = true
+		c.ingredientGroups = append(c.ingredientGroups, ingGrp)
+	}
 }
 
 func (c *ClientInfo) Execute(args ...string) {
-	fmt.Printf("resolving namespaces...\n")
-	namespaces, err := resolveNamespaces(c.rootNamespace)
+	ctx, cancel := context.WithCancel(context.Background())
+
+	runGroup := run.Group{}
+	{
+		cancelInterrupt := make(chan struct{})
+		runGroup.Add(
+			createSignalWatcher(ctx, cancelInterrupt, cancel),
+			func(error) {
+				close(cancelInterrupt)
+			})
+	}
+	{
+		runGroup.Add(func() error {
+			return c.defaultIngredient.cobraCommand.ExecuteContext(ctx)
+		}, func(error) {
+			cancel()
+		})
+	}
+
+	err := runGroup.Run()
 	if err != nil {
-		panic(fmt.Errorf("unable to resolve namespaces: %w", err))
-	}
-	fmt.Printf("%d namespaces found...\n", len(namespaces))
-
-	fmt.Printf("gathering ingredients...\n")
-	ingredients := gatherIngredients(namespaces)
-	fmt.Printf("%d ingredients found...\n", len(ingredients))
-
-	resolver, err := newIngredientDependencyResolver(ingredients)
-	if err != nil {
-		panic(fmt.Errorf("unable to create ingredient resolver: %w", err))
+		fmt.Fprintf(os.Stderr, "exit reason: %s\n", err)
+		os.Exit(1)
 	}
 
-	fmt.Printf("resolving ingredients...\n")
-	ingredientsResolved, err := resolver.Resolve()
-	if err != nil {
-		panic(fmt.Errorf("unable to resolve ingredients list and dependencies: %w", err))
-	}
-	fmt.Printf("%d resolved ingredients...\n", len(ingredientsResolved))
-
-	for _, ing := range ingredientsResolved {
-		fmt.Printf("%s:%s\n", ing.namespace.name, ing.Name)
-	}
+	color.New(color.FgGreen).Fprintln(os.Stderr, "Done!")
 }
 
-func gatherIngredients(namespaces []*NamespaceInfo) []*IngredientInfo {
-	ingredients := []*IngredientInfo{}
+// This function just sits and waits for ctrl-C
+func createSignalWatcher(ctx context.Context, cancelInterruptChan <-chan struct{}, cancel context.CancelFunc) func() error {
+	return func() error {
+		c := make(chan os.Signal, 1)
 
-	for _, ns := range namespaces {
-		for _, ingFn := range ns.ingredientFns {
-			ingredient := ingFn()
-
-			// set where we found the ingredient
-			ingredient.namespace = ns
-			ingredients = append(ingredients, ingredient)
+		signal.Notify(c, syscall.SIGINT, syscall.SIGTERM)
+		select {
+		case sig := <-c:
+			err := errors.New(fmt.Sprintf("received signal %s", sig))
+			fmt.Fprintf(os.Stderr, "%s\n", err)
+			signal.Stop(c)
+			cancel()
+			return err
+		case <-ctx.Done():
+			return nil
+		case <-cancelInterruptChan:
+			return nil
 		}
 	}
-
-	return ingredients
-}
-
-func (c *ClientInfo) RootNamespace() *NamespaceInfo {
-	return c.rootNamespace
-}
-
-var _ Client = &ClientInfo{}
-
-func MustNew(namespaces ...*NamespaceInfo) *ClientInfo {
-	rootNs := MustNewNamespace("root", []IngredientFn{}, namespaces...)
-
-	c := &ClientInfo{
-		rootNamespace: rootNs,
-	}
-
-	return c
 }

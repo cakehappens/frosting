@@ -1,28 +1,48 @@
 package main
 
 import (
+	"context"
 	"fmt"
-	fr "github.com/cakehappens/frosting"
-	"github.com/cakehappens/frosting/examples/full/frosting/greetings"
-	"os"
+	"github.com/cakehappens/frosting"
 )
 
-func Build() *fr.IngredientInfo {
-	return fr.MustNewIngredientInfo(
-		"build",
-		func(ing *fr.IngredientInfo) {
-			ing.Fn = func() error {
-				fmt.Println("Building...")
-				return nil
-			}
+func NewBuildIngredient() *frosting.Ingredient {
+	ing := &frosting.Ingredient{
+		Name: "build",
+		RunFn: func(ctx context.Context) error {
+			fmt.Println("Building...")
+			return nil
 		},
+	}
+
+	ing.MustSetDependencies(
+		NewTestIngredient(),
 	)
+
+	return ing
+}
+
+func NewTestIngredient() *frosting.Ingredient {
+	return &frosting.Ingredient{
+		Name: "test",
+		RunFn: func(ctx context.Context) error {
+			fmt.Println("Testing...")
+			return nil
+		},
+	}
 }
 
 func main() {
-	client := fr.MustNew(
-		greetings.GreetingsNamespace,
+	f := frosting.New("fr")
+	f.MustAddIngredientGroups(
+		&frosting.IngredientGroup{
+			Header:    "stuff",
+			Namespace: "",
+			Ingredients: []*frosting.Ingredient{
+				NewBuildIngredient(),
+			},
+		},
 	)
-	client.RootNamespace().MustAddIngredients(Build)
-	client.Execute(os.Args[1:]...)
+
+	f.Execute("foo")
 }

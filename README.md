@@ -76,6 +76,14 @@ I've been itching to write my own CLI for awhile now, and I think I finally have
 
 - spf13/cobra
 
+### Reading
+
+
+- https://dave.cheney.net/2017/06/11/go-without-package-scoped-variables
+- https://dave.cheney.net/2014/10/17/functional-options-for-friendly-apis
+- https://dave.cheney.net/2016/04/27/dont-just-check-errors-handle-them-gracefully
+- https://dave.cheney.net/tag/logging
+
 ## Support
 
 <a href="https://www.buymeacoffee.com/50onA1pjc" target="_blank"><img src="https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png" alt="Buy Me A Coffee" style="height: auto !important; width: auto !important;" /></a>
