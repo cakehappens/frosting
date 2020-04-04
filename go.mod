@@ -13,4 +13,5 @@ require (
 	github.com/stretchr/testify v1.5.1
 	golang.org/x/tools v0.0.0-20200331202046-9d5940d49312 // indirect
 	gopkg.in/eapache/queue.v1 v1.1.0
+	k8s.io/kubectl v0.18.0 // indirect
 )

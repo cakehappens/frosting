@@ -15,6 +15,7 @@ import (
 	"github.com/fatih/color"
 	"github.com/oklog/run"
 	//"gopkg.in/eapache/queue.v1"
+	"k8s.io/kubectl/pkg/util/templates"
 )
 
 type ClientInfo struct {
@@ -22,22 +23,31 @@ type ClientInfo struct {
 	ingredientGroups  []*IngredientGroup
 }
 
+func newRootCommand(binaryName string) *cobra.Command {
+	cmd := &cobra.Command{
+		Use: binaryName,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) == 0 {
+				runHelp(cmd, args)
+				return nil
+			}
+
+			fmt.Printf("running: %s\n", args)
+			return nil
+		},
+	}
+
+	groups := templates.CommandGroups{}
+
+	cmd.AddCommand()
+
+	return cmd
+}
+
 func New(binaryName string) *ClientInfo {
 	return &ClientInfo{
 		defaultIngredient: &Ingredient{
-			cobraCommand: &cobra.Command{
-				Use: binaryName,
-				RunE: func(cmd *cobra.Command, args []string) error {
-					if len(args) == 0 {
-						fmt.Println("no args.. running help...")
-						runHelp(cmd, args)
-						return nil
-					}
-
-					fmt.Printf("running: %s\n", args)
-					return nil
-				},
-			},
+			cobraCommand: newRootCommand(binaryName),
 		},
 	}
 }
@@ -83,7 +93,9 @@ func (c *ClientInfo) Execute(args ...string) {
 	}
 	{
 		runGroup.Add(func() error {
-			return c.defaultIngredient.cobraCommand.ExecuteContext(ctx)
+			rootC := c.defaultIngredient.cobraCommand
+			rootC.SetArgs(os.Args[1:])
+			return rootC.ExecuteContext(ctx)
 		}, func(error) {
 			cancel()
 		})
