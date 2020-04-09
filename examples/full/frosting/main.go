@@ -6,42 +6,42 @@ import (
 	"github.com/cakehappens/frosting"
 )
 
+const Build = "build"
+
 func NewBuildIngredient() *frosting.Ingredient {
-	ing := &frosting.Ingredient{
-		Name: "build",
-		RunFn: func(ctx context.Context) error {
+	return frosting.MustNew(
+		Build,
+		func(ctx context.Context) error {
 			fmt.Println("Building...")
 			return nil
 		},
-	}
-
-	ing.MustSetDependencies(
-		NewTestIngredient(),
+		//ingredient.WithDependencies(Test),
+		frosting.WithHelpDescriptions("buildShort", "buildLong"),
 	)
-
-	return ing
 }
 
+const Test = "test"
+
 func NewTestIngredient() *frosting.Ingredient {
-	return &frosting.Ingredient{
-		Name: "test",
-		RunFn: func(ctx context.Context) error {
+	return frosting.MustNew(
+		Test,
+		func(ctx context.Context) error {
 			fmt.Println("Testing...")
 			return nil
 		},
-	}
+	)
 }
 
 func main() {
-	f := frosting.New("fr")
+	f := frosting.New("frost")
 	f.MustAddIngredientGroups(
-		&frosting.IngredientGroup{
-			Header:    "stuff",
-			Namespace: "",
-			Ingredients: []*frosting.Ingredient{
+		frosting.MustNewGroup(
+			"Main Stuff:",
+			frosting.Includes(
 				NewBuildIngredient(),
-			},
-		},
+				NewTestIngredient(),
+			),
+		),
 	)
 
 	f.Execute("foo")

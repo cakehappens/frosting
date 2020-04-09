@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/spf13/cobra"
+	"k8s.io/kubectl/pkg/util/templates"
 	"os"
 	"os/signal"
 	//"reflect"
@@ -14,41 +15,33 @@ import (
 
 	"github.com/fatih/color"
 	"github.com/oklog/run"
-	//"gopkg.in/eapache/queue.v1"
-	"k8s.io/kubectl/pkg/util/templates"
 )
 
 type ClientInfo struct {
-	defaultIngredient *Ingredient
-	ingredientGroups  []*IngredientGroup
+	rootCommand                *cobra.Command
+	ingredientGroups           []*IngredientGroup
+	ingredients                map[string]*Ingredient
+	commands                   map[string]*cobra.Command
+	commandsPerIngredientGroup map[*IngredientGroup][]*cobra.Command
 }
 
 func newRootCommand(binaryName string) *cobra.Command {
 	cmd := &cobra.Command{
-		Use: binaryName,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			if len(args) == 0 {
-				runHelp(cmd, args)
-				return nil
-			}
-
-			fmt.Printf("running: %s\n", args)
-			return nil
-		},
+		Use:   binaryName,
+		Short: "Frosting!",
+		Long:  "CakeHappens/Frosting!",
+		Run:   runHelp,
 	}
-
-	groups := templates.CommandGroups{}
-
-	cmd.AddCommand()
 
 	return cmd
 }
 
 func New(binaryName string) *ClientInfo {
 	return &ClientInfo{
-		defaultIngredient: &Ingredient{
-			cobraCommand: newRootCommand(binaryName),
-		},
+		rootCommand:                newRootCommand(binaryName),
+		ingredients:                make(map[string]*Ingredient),
+		commands:                   make(map[string]*cobra.Command),
+		commandsPerIngredientGroup: make(map[*IngredientGroup][]*cobra.Command),
 	}
 }
 
@@ -57,25 +50,51 @@ func runHelp(cmd *cobra.Command, args []string) {
 }
 
 func (c *ClientInfo) MustAddIngredientGroups(ingGrps ...*IngredientGroup) {
-	ingGrpNsMap := make(map[string]bool)
-	ingGrpHeaderMap := make(map[string]bool)
-
 	for _, ingGrp := range ingGrps {
-		if ingGrp.Header == "" {
-			panic(fmt.Errorf("ingredient groups must have a non-empty header. found empty header for: %+v", ingGrp))
+		if ingGrp == nil {
+			panic(errors.New("cannot add nil ingredientGroup"))
 		}
 
-		if ingGrpNsMap[ingGrp.Namespace] {
-			panic(fmt.Errorf("duplicate namespace: %s", ingGrp.Namespace))
-		}
+		c.ingredientGroups = append(c.ingredientGroups, ingGrps...)
 
-		if ingGrpHeaderMap[ingGrp.Header] {
-			panic(fmt.Errorf("duplicate header: %s", ingGrp.Header))
+		for _, ing := range ingGrp.ingredients {
+			c.ingredients[ing.name] = ing
 		}
+	}
+}
 
-		ingGrpNsMap[ingGrp.Namespace] = true
-		ingGrpHeaderMap[ingGrp.Header] = true
-		c.ingredientGroups = append(c.ingredientGroups, ingGrp)
+func (c *ClientInfo) Ingredients() map[string]*Ingredient {
+	return c.ingredients
+}
+
+func (c *ClientInfo) Commands() map[string]*cobra.Command {
+	if len(c.commands) == 0 {
+		for _, ingGroup := range c.ingredientGroups {
+			for _, ing := range ingGroup.ingredients {
+				cmd := createCommandFromIngredient(ing)
+				c.commandsPerIngredientGroup[ingGroup] = append(c.commandsPerIngredientGroup[ingGroup], cmd)
+				c.commands[ing.name] = cmd
+			}
+		}
+	}
+
+	return c.commands
+}
+
+func (c *ClientInfo) CommandsPerIngredientGroup() map[*IngredientGroup][]*cobra.Command {
+	return c.commandsPerIngredientGroup
+}
+
+func (c *ClientInfo) createCommandFromIngredient(ing *Ingredient) *cobra.Command {
+	return &cobra.Command{
+		Use:     ing.name,
+		Aliases: ing.aliases,
+		Short:   ing.short,
+		Long:    ing.long,
+		Example: ing.example,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return nil
+		},
 	}
 }
 
@@ -93,8 +112,23 @@ func (c *ClientInfo) Execute(args ...string) {
 	}
 	{
 		runGroup.Add(func() error {
-			rootC := c.defaultIngredient.cobraCommand
+			rootC := c.rootCommand
 			rootC.SetArgs(os.Args[1:])
+
+			cmdGroups := templates.CommandGroups{}
+
+			for ingGroup, cmds := range c.commandsPerIngredientGroup {
+				rootC.AddCommand(cmds...)
+				cmdGroups = append(cmdGroups, templates.CommandGroup{
+					Message:  ingGroup.header,
+					Commands: cmds,
+				})
+			}
+
+			// add all commands from the cmdGroups as subcommands to the root
+			cmdGroups.Add(rootC)
+			templates.ActsAsRootCommand(rootC, nil, cmdGroups...)
+
 			return rootC.ExecuteContext(ctx)
 		}, func(error) {
 			cancel()

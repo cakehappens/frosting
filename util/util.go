@@ -1,17 +1,8 @@
-package frosting
+package util
 
 import (
-	"github.com/oklog/ulid/v2"
-	"math/rand"
 	"runtime"
-	"time"
 )
-
-func newULID() string {
-	t := time.Now()
-	entropy := ulid.Monotonic(rand.New(rand.NewSource(t.UnixNano())), 0)
-	return ulid.MustNew(ulid.Timestamp(t), entropy).String()
-}
 
 func getFrame(skipFrames int) runtime.Frame {
 	// We need the frame at index skipFrames+2, since we never want runtime.Callers and getFrame
@@ -37,7 +28,7 @@ func getFrame(skipFrames int) runtime.Frame {
 }
 
 // MyCaller returns the caller of the function that called it :)
-func myCaller() string {
+func MyCaller() string {
 	// Skip GetCallerFunctionName and the function to get the caller of
 	return getFrame(2).Function
 }

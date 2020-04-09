@@ -2,57 +2,89 @@ package frosting
 
 import (
 	"context"
-	"errors"
-	"fmt"
 	"github.com/spf13/cobra"
-	"gopkg.in/eapache/queue.v1"
+	flag "github.com/spf13/pflag"
 )
 
 type RunFn func(ctx context.Context) error
 
+type IngredientOption func(ing *Ingredient)
+
+type IngredientFn func() *Ingredient
+
 type Ingredient struct {
-	Name         string
-	RunFn        RunFn
-	Dependencies func() []*Ingredient
-
-	cobraCommand *cobra.Command
+	name               string
+	runFn              RunFn
+	aliases            []string
+	short              string
+	long               string
+	example            string
+	dependencies       []string
+	serialDependencies []string
+	flagsFn            func(flagSet *flag.FlagSet)
+	command            *cobra.Command
+	ready              bool
+	ran                bool
 }
 
-func (ing *Ingredient) MustSetDependencies(deps ...*Ingredient) {
-	for _, dep := range deps {
-		if dep == ing {
-			panic(errors.New("ingredient cannot be a dependency of itself"))
-		}
-	}
+func (ing *Ingredient) Name() string {
+	return ing.name
+}
 
-	ing.Dependencies = func() []*Ingredient {
-		return deps
+func (ing *Ingredient) Dependencies() []string {
+	return ing.dependencies
+}
+
+func (ing *Ingredient) SerialDependencies() []string {
+	return ing.serialDependencies
+}
+
+func WithDependencies(deps ...string) IngredientOption {
+	return func(ing *Ingredient) {
+		ing.dependencies = append(ing.dependencies, deps...)
 	}
 }
 
-// this probably only is needed from root ingredients
-func (ing *Ingredient) resolveAllDeps() ([]*Ingredient, error) {
-	var deps []*Ingredient
-	visited := make(map[string]bool)
+func WithSerialDependencies(deps ...string) IngredientOption {
+	return func(ing *Ingredient) {
+		ing.serialDependencies = append(ing.serialDependencies, deps...)
+	}
+}
 
-	ingQueue := queue.New()
+func WithAliases(aliases ...string) IngredientOption {
+	return func(ing *Ingredient) {
+		ing.aliases = append(ing.aliases, aliases...)
+	}
+}
 
-	ingQueue.Add(ing)
+func WithHelpDescriptions(short, long string) IngredientOption {
+	return func(ing *Ingredient) {
+		ing.short = short
+		ing.long = long
+	}
+}
 
-	for ingQueue.Length() > 0 {
-		dep := ingQueue.Remove().(*Ingredient)
+func WithExampleHelp(example string) IngredientOption {
+	return func(ing *Ingredient) {
+		ing.example = example
+	}
+}
 
-		if visited[dep.Name] {
-			return nil, fmt.Errorf("found circular reference via: %s", dep.Name)
-		}
+func WithFlags(fn func(set *flag.FlagSet)) IngredientOption {
+	return func(ing *Ingredient) {
+		ing.flagsFn = fn
+	}
+}
 
-		deps = append(deps, dep)
-		visited[dep.Name] = true
-
-		for _, d := range dep.Dependencies() {
-			ingQueue.Add(d)
-		}
+func MustNewIngredient(name string, runFn RunFn, opts ...IngredientOption) *Ingredient {
+	ing := &Ingredient{
+		name:  name,
+		runFn: runFn,
 	}
 
-	return deps, nil
+	for _, o := range opts {
+		o(ing)
+	}
+
+	return ing
 }
