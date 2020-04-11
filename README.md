@@ -82,46 +82,57 @@ package main
 import (
 	"context"
 	"fmt"
+	"os"
+
 	"github.com/cakehappens/frosting"
-	"github.com/cakehappens/frosting/ingredient"
 )
 
-func NewBuildIngredient() *ingredient.Ingredient {
-	return ingredient.MustNew(
-		"build",
-		func(ctx context.Context) error {
+func NewBuildIngredient(name string, options ...frosting.IngredientOption) *frosting.Ingredient {
+	return frosting.MustNewIngredient(
+		name,
+		func(ctx context.Context, ing *frosting.Ingredient) error {
 			fmt.Println("Building...")
 			return nil
 		},
-		ingredient.WithDependencies(NewTestIngredient),
+		append([]frosting.IngredientOption{
+			frosting.WithHelpDescriptions("buildShort", "buildLong"),
+		}, options...)...,
 	)
 }
 
-func NewTestIngredient() *ingredient.Ingredient {
-	return ingredient.MustNew(
-		"test",
-		func(ctx context.Context) error {
+func NewTestIngredient(name string, options ...frosting.IngredientOption) *frosting.Ingredient {
+	return frosting.MustNewIngredient(
+		name,
+		func(ctx context.Context, ing *frosting.Ingredient) error {
 			fmt.Println("Testing...")
 			return nil
 		},
+		options...,
 	)
 }
 
 func main() {
 	f := frosting.New("frost")
-	f.MustAddIngredientGroups(
-		ingredient.MustNewGroup(
-			"",
-			"Main Stuff:",
-			ingredient.Includes(
-				NewBuildIngredient,
-				NewTestIngredient,
-			),
-		),
-	)
 
-	f.Execute("foo")
+	{
+		build := NewBuildIngredient("build")
+
+		// test depends on build
+		test := NewTestIngredient(
+			"test",
+			frosting.WithDependencies(build),
+		)
+
+		f.Group(
+			"Basic Commands (Beginner):",
+			build,
+			test,
+		)
+	}
+
+	f.Execute(os.Args[1:]...)
 }
+
 
 ```
 
@@ -158,11 +169,12 @@ I'll definitely get some templates/guidelines setup soon...
 - https://dave.cheney.net/tag/logging
 - https://stackoverflow.com/questions/2214575/passing-arguments-to-make-run
 
-## 💕 Related
+## 💕 Related & Inspiration
 
 - [Mage][mage]
 - [Taskfile][taskfile]
 - [Make][make]
+- [Makem.sh][https://github.com/alphapapa/makem.sh]
 
 ## 📜 Credits
 

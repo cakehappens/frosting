@@ -6,25 +6,27 @@
 
 ### Library Code Example
 
-📌 _Let the consumer define the name of the target_
+📌 _Let the caller define the name of the target_
 
 🏷️ _Ingredients are ** **globally unique by name** **, to allow different ingredients to have the same dependencies, but ensuring we don't call the dependent ingredient more than once._
 
-🛑 _Don't perform any initialization logic within the function that returns the ingredient. This function may be called multiple times, and the resulting ingredient struct may be tossed out based on the globally unique rule above_
-
 ```go
-func NewBuildIngredient(name) *ingredient.Ingredient {
-	return ingredient.MustNew(
+func NewBuildIngredient(name string, options ...frosting.IngredientOption) *frosting.Ingredient {
+	return frosting.MustNewIngredient(
 		name,
-		func(ctx context.Context) error {
+		func(ctx context.Context, ing *frosting.Ingredient) error {
 			fmt.Println("Building...")
 			return nil
 		},
+		append([]frosting.IngredientOption{
+			frosting.WithHelpDescriptions("buildShort", "buildLong"),
+		}, options...)...,
 	)
 }
 ```
 
-Ingredients may be grouped as well, but regardless of group, they are still ** **globally unique by name** **. A group is only to assist when getting help.
+Next, mix ingredients into frosting by adding them to a group. This provides a nice interface for getting help about related ingredients.
+Ingredients are still ** **globally unique by name** ** regardless of group.
 
 ```
 $ frost help
@@ -36,64 +38,27 @@ Basic Commands (Beginner):
 ```
 
 ```go
-func NewFooIngredientGroup() *frosting.IngredientGroup {
-    return ingredient.MustNewGroup(
-        "Basic Commands (Beginner):",
-        ingredient.Includes(
-            NewBuildIngredient("build"),
-            NewTestIngredient("test"),
-        ),
-    ),
+func main() {
+	f := frosting.New("frost")
+
+	{
+		build := NewBuildIngredient("build")
+
+		// test depends on build
+		test := NewTestIngredient(
+			"test",
+			frosting.WithDependencies(build),
+		)
+
+		f.Group(
+			"Basic Commands (Beginner):",
+			build,
+			test,
+		)
+	}
+
+	f.Execute(os.Args[1:]...)
 }
 ```
 
-### Declaring Dependencies
-
-The recommended way to define dependencies is to first declare the name of ingredient as a constant. Then use that constant when setting dependencies.
-
-```go
-
-const Build = "build"
-
-func NewBuildIngredient() *ingredient.Ingredient {
-	return ingredient.MustNew(
-		Build,
-		func(ctx context.Context) error {
-			fmt.Println("Building...")
-			return nil
-        },
-        ingredient.WithDependency(
-            
-        )
-	)
-}
-
-const Test = "test"
-
-func NewBuildIngredient(name) *ingredient.Ingredient {
-	return ingredient.MustNew(
-		name,
-		func(ctx context.Context) error {
-			fmt.Println("Building...")
-			return nil
-        },
-        ingredient.WithDependencies(
-            Build
-        )
-	)
-}
-```
-
-You may also declare dependencies that should be run serially. These dependencies will implicitly be made dependencies of each other. The following will result in ingredients running in this order:
-
-```
-A -> B -> C -> This
-```
-
-```go
-ingredient.WithSerialDependencies(
-    A,
-    B,
-    C
-)
-```
+👀 For more information, check out the [examples](../examples)!

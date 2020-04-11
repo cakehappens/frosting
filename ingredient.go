@@ -2,53 +2,30 @@ package frosting
 
 import (
 	"context"
-	"github.com/spf13/cobra"
+
 	flag "github.com/spf13/pflag"
 )
 
-type RunFn func(ctx context.Context) error
+type RunFn func(ctx context.Context, ing *Ingredient) error
 
 type IngredientOption func(ing *Ingredient)
 
 type IngredientFn func() *Ingredient
 
 type Ingredient struct {
-	name               string
-	runFn              RunFn
-	aliases            []string
-	short              string
-	long               string
-	example            string
-	dependencies       []string
-	serialDependencies []string
-	flagsFn            func(flagSet *flag.FlagSet)
-	command            *cobra.Command
-	ready              bool
-	ran                bool
+	name         string
+	runFn        RunFn
+	aliases      []string
+	short        string
+	long         string
+	example      string
+	dependencies []*Ingredient
+	flagsFn      func(flagSet *flag.FlagSet)
+	ran          bool
 }
 
 func (ing *Ingredient) Name() string {
 	return ing.name
-}
-
-func (ing *Ingredient) Dependencies() []string {
-	return ing.dependencies
-}
-
-func (ing *Ingredient) SerialDependencies() []string {
-	return ing.serialDependencies
-}
-
-func WithDependencies(deps ...string) IngredientOption {
-	return func(ing *Ingredient) {
-		ing.dependencies = append(ing.dependencies, deps...)
-	}
-}
-
-func WithSerialDependencies(deps ...string) IngredientOption {
-	return func(ing *Ingredient) {
-		ing.serialDependencies = append(ing.serialDependencies, deps...)
-	}
 }
 
 func WithAliases(aliases ...string) IngredientOption {
@@ -70,6 +47,12 @@ func WithExampleHelp(example string) IngredientOption {
 	}
 }
 
+func WithDependencies(deps ...*Ingredient) IngredientOption {
+	return func(ing *Ingredient) {
+		ing.dependencies = deps
+	}
+}
+
 func WithFlags(fn func(set *flag.FlagSet)) IngredientOption {
 	return func(ing *Ingredient) {
 		ing.flagsFn = fn
@@ -87,4 +70,9 @@ func MustNewIngredient(name string, runFn RunFn, opts ...IngredientOption) *Ingr
 	}
 
 	return ing
+}
+
+type ingredientGroup struct {
+	header      string
+	ingredients []*Ingredient
 }

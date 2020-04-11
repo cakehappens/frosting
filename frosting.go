@@ -18,11 +18,9 @@ import (
 )
 
 type ClientInfo struct {
-	rootCommand                *cobra.Command
-	ingredientGroups           []*IngredientGroup
-	ingredients                map[string]*Ingredient
-	commands                   map[string]*cobra.Command
-	commandsPerIngredientGroup map[*IngredientGroup][]*cobra.Command
+	rootCommand      *cobra.Command
+	ingredientGroups []*ingredientGroup
+	ingredients      map[string]*Ingredient
 }
 
 func newRootCommand(binaryName string) *cobra.Command {
@@ -38,10 +36,8 @@ func newRootCommand(binaryName string) *cobra.Command {
 
 func New(binaryName string) *ClientInfo {
 	return &ClientInfo{
-		rootCommand:                newRootCommand(binaryName),
-		ingredients:                make(map[string]*Ingredient),
-		commands:                   make(map[string]*cobra.Command),
-		commandsPerIngredientGroup: make(map[*IngredientGroup][]*cobra.Command),
+		rootCommand: newRootCommand(binaryName),
+		ingredients: make(map[string]*Ingredient),
 	}
 }
 
@@ -49,54 +45,38 @@ func runHelp(cmd *cobra.Command, args []string) {
 	cmd.Help()
 }
 
-func (c *ClientInfo) MustAddIngredientGroups(ingGrps ...*IngredientGroup) {
-	for _, ingGrp := range ingGrps {
-		if ingGrp == nil {
-			panic(errors.New("cannot add nil ingredientGroup"))
+func (c *ClientInfo) Group(header string, ingredients ...*Ingredient) {
+	grp := &ingredientGroup{
+		header:      header,
+		ingredients: ingredients,
+	}
+
+	c.ingredientGroups = append(c.ingredientGroups, grp)
+
+	for _, ing := range ingredients {
+		if _, ok := c.ingredients[ing.name]; ok {
+			panic(fmt.Errorf("ingredient with name already added: %s", ing.name))
 		}
 
-		c.ingredientGroups = append(c.ingredientGroups, ingGrps...)
-
-		for _, ing := range ingGrp.ingredients {
-			c.ingredients[ing.name] = ing
-		}
+		c.ingredients[ing.name] = ing
 	}
 }
 
-func (c *ClientInfo) Ingredients() map[string]*Ingredient {
-	return c.ingredients
-}
-
-func (c *ClientInfo) Commands() map[string]*cobra.Command {
-	if len(c.commands) == 0 {
-		for _, ingGroup := range c.ingredientGroups {
-			for _, ing := range ingGroup.ingredients {
-				cmd := createCommandFromIngredient(ing)
-				c.commandsPerIngredientGroup[ingGroup] = append(c.commandsPerIngredientGroup[ingGroup], cmd)
-				c.commands[ing.name] = cmd
-			}
-		}
-	}
-
-	return c.commands
-}
-
-func (c *ClientInfo) CommandsPerIngredientGroup() map[*IngredientGroup][]*cobra.Command {
-	return c.commandsPerIngredientGroup
-}
-
-func (c *ClientInfo) createCommandFromIngredient(ing *Ingredient) *cobra.Command {
-	return &cobra.Command{
-		Use:     ing.name,
-		Aliases: ing.aliases,
-		Short:   ing.short,
-		Long:    ing.long,
-		Example: ing.example,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return nil
-		},
-	}
-}
+//func mergeIngredientMaps(ingredientMaps ...map[string]*Ingredient) (map[string]*Ingredient, error) {
+//	newMap := make(map[string]*Ingredient)
+//
+//	for _, ingMap := range ingredientMaps {
+//		for name, ing := range ingMap {
+//			if _, ok := newMap[name]; ok {
+//				return nil, fmt.Errorf("ingredient with name already added: %s", name)
+//			}
+//
+//			newMap[name] = ing
+//		}
+//	}
+//
+//	return newMap, nil
+//}
 
 func (c *ClientInfo) Execute(args ...string) {
 	ctx, cancel := context.WithCancel(context.Background())
@@ -117,13 +97,13 @@ func (c *ClientInfo) Execute(args ...string) {
 
 			cmdGroups := templates.CommandGroups{}
 
-			for ingGroup, cmds := range c.commandsPerIngredientGroup {
-				rootC.AddCommand(cmds...)
-				cmdGroups = append(cmdGroups, templates.CommandGroup{
-					Message:  ingGroup.header,
-					Commands: cmds,
-				})
-			}
+			//for ingGroup, cmds := range c.commandsPerIngredientGroup {
+			//	rootC.AddCommand(cmds...)
+			//	cmdGroups = append(cmdGroups, templates.CommandGroup{
+			//		Message:  ingGroup.header,
+			//		Commands: cmds,
+			//	})
+			//}
 
 			// add all commands from the cmdGroups as subcommands to the root
 			cmdGroups.Add(rootC)
